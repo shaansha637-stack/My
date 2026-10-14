@@ -3,7 +3,7 @@ name: Build Unsigned IPA
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:      # ← lets you run it manually from Actions tab
+  workflow_dispatch:
 
 jobs:
   build-ipa:
@@ -17,14 +17,17 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
 
-      # 👇 Debug: show where your .xcodeproj / .xcworkspace actually is
-      - name: Locate project
+      - name: Debug - list repo contents
         run: |
           echo "Workspace: $GITHUB_WORKSPACE"
-          find . -maxdepth 4 -name "*.xcodeproj" -o -name "*.xcworkspace" | grep -v xcuserdata
+          echo "===== TOP LEVEL ====="
+          ls -la
+          echo "===== ALL FILES (git tracked) ====="
+          git ls-files | head -100
+          echo "===== XCODEPROJ / XCWORKSPACE ====="
+          find . -maxdepth 5 \( -name "*.xcodeproj" -o -name "*.xcworkspace" \) -not -path "*/xcuserdata/*" 2>/dev/null || true
 
-      # ⚠️ EDIT the -project path below if your project is in a subfolder
-      # ⚠️ EDIT -scheme to match your shared scheme name exactly
+      # ⚠️ CHANGE THIS PATH to match what the debug step shows
       - name: Build archive (unsigned)
         run: |
           xcodebuild archive \
@@ -39,22 +42,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO
 
-      # 👇 Package the .app inside the .xcarchive into an unsigned .ipa
       - name: Package unsigned IPA
         run: |
           set -e
-          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -name "*.app" -maxdepth 1 | head -n 1)
-          echo "App found at: $APP_PATH"
-
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
+          echo "App: $APP_PATH"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
-
           cd "$RUNNER_TEMP"
           zip -qry FinanceTracker-unsigned.ipa Payload
-
           ls -lh FinanceTracker-unsigned.ipa
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: FinanceTracker-unsigned-ipa
