@@ -1,0 +1,11 @@
+      - name: Build archive (unsigned)
+        run: |
+          xcodebuild archive \
+            -project ios/FinanceTracker.xcodeproj \
+            -scheme FinanceTracker \
+            -configuration Release \
+            -archivePath build/FinanceTracker.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
