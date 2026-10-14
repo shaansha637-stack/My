@@ -1,0 +1,62 @@
+name: Build Unsigned IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:      # ← lets you run it manually from Actions tab
+
+jobs:
+  build-ipa:
+    name: Build Unsigned IPA
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      # 👇 Debug: show where your .xcodeproj / .xcworkspace actually is
+      - name: Locate project
+        run: |
+          echo "Workspace: $GITHUB_WORKSPACE"
+          find . -maxdepth 4 -name "*.xcodeproj" -o -name "*.xcworkspace" | grep -v xcuserdata
+
+      # ⚠️ EDIT the -project path below if your project is in a subfolder
+      # ⚠️ EDIT -scheme to match your shared scheme name exactly
+      - name: Build archive (unsigned)
+        run: |
+          xcodebuild archive \
+            -project FinanceTracker.xcodeproj \
+            -scheme FinanceTracker \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO
+
+      # 👇 Package the .app inside the .xcarchive into an unsigned .ipa
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -name "*.app" -maxdepth 1 | head -n 1)
+          echo "App found at: $APP_PATH"
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+
+          cd "$RUNNER_TEMP"
+          zip -qry FinanceTracker-unsigned.ipa Payload
+
+          ls -lh FinanceTracker-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinanceTracker-unsigned-ipa
+          path: ${{ runner.temp }}/FinanceTracker-unsigned.ipa
+          retention-days: 30
